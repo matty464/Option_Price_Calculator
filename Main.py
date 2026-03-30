@@ -430,8 +430,8 @@ with tab_pl:
     single_sym = len(uniq_syms) == 1
     if not single_sym:
         st.caption(
-            "Underlyings differ: charts use **one leg** you select (or switch leg). "
-            "Totals in the table would mix different x-axes."
+            "Underlyings differ: charts use **one leg** you select. "
+            "**By date** uses the **spot you set** for that underlying’s time path."
         )
         leg_labels = [f"Leg {x['leg_i']}: {x['snap'].ticker} {x['snap'].option_type} {x['snap'].strike:g} {x['snap'].expiry}" for x in resolved]
         pick = st.selectbox("Leg for charts", range(len(resolved)), format_func=lambda i: leg_labels[i])
@@ -440,12 +440,26 @@ with tab_pl:
         chart_entries = resolved
         st.caption(
             "Same underlying: **portfolio** P/L sums legs (**your trade** or mid × qty per leg). "
-            "Time path: each leg’s own expiry calendar; spot path: shared **S**."
+            "**By date** uses the **spot you set** for the time path; **By stock price** sweeps price at current DTE."
         )
 
     chart_xs = chart_entries
     sym_chart = chart_xs[0]["snap"].ticker
     S_chart = float(chart_xs[0]["S_mark"])
+
+    st.markdown("**Time-decay path (By date)**")
+    S_time = st.number_input(
+        f"{sym_chart} spot to hold for the date path ($)",
+        min_value=0.01,
+        value=float(round(S_chart, 2)),
+        step=0.01,
+        format="%.2f",
+        key="pl_S_time",
+        help=(
+            "Theta-style path: same stock price on every date. Defaults to your **mark spot**; "
+            "change it to stress a different level (e.g. Sunday mark vs Friday close)."
+        ),
+    )
 
     def model_price_on_date(S_spot: float, snap, iv_eff: float, d: date) -> float:
         exp_d = datetime.strptime(snap.expiry, "%Y-%m-%d").date()
@@ -496,7 +510,7 @@ with tab_pl:
         if d > max_exp:
             break
         chart_dates.append(d)
-        eq, pnl = portfolio_equiv_pnl_for_date(S_chart, chart_xs, d)
+        eq, pnl = portfolio_equiv_pnl_for_date(float(S_time), chart_xs, d)
         min_dte = min(max((datetime.strptime(x["snap"].expiry, "%Y-%m-%d").date() - d).days, 0) for x in chart_xs)
         time_rows.append({"Date": d.isoformat(), "Min DTE": min_dte, "Price ($/sh eq)": eq, "P/L ($)": pnl})
         day_i += 1
@@ -527,6 +541,8 @@ with tab_pl:
     t_time, t_spot, t_heat, t_tbl = st.tabs(["By date", "By stock price", "P/L: date & price", "Tables"])
 
     with t_time:
+        st.markdown(f"**By date** — {sym_chart} @ **${S_time:,.2f}**")
+        st.caption("Underlying held at this level through time (adjust in **Time-decay path** above). IV unchanged.")
         fig_t = make_subplots(specs=[[{"secondary_y": True}]])
         fig_t.add_trace(
             go.Scatter(x=df_time["Date"], y=df_time["Price ($/sh eq)"], name="Model price (equiv)", mode="lines"),
@@ -539,7 +555,18 @@ with tab_pl:
         fig_t.update_xaxes(title_text="Date")
         fig_t.update_yaxes(title_text="Price ($/sh equivalent)", secondary_y=False)
         fig_t.update_yaxes(title_text="P/L ($)", secondary_y=True)
-        fig_t.update_layout(height=500, margin=dict(t=40), legend=dict(orientation="h", yanchor="bottom", y=1.02))
+        fig_t.update_layout(
+            height=500,
+            margin=dict(t=16, b=96),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.18,
+                yref="paper",
+                x=0.5,
+                xanchor="center",
+            ),
+        )
         st.plotly_chart(fig_t, use_container_width=True)
 
     with t_spot:
@@ -556,7 +583,18 @@ with tab_pl:
         fig_s.update_xaxes(title_text=f"{sym_chart} price ($)")
         fig_s.update_yaxes(title_text="Price ($/sh equivalent)", secondary_y=False)
         fig_s.update_yaxes(title_text="P/L ($)", secondary_y=True)
-        fig_s.update_layout(height=500, margin=dict(t=40), legend=dict(orientation="h", yanchor="bottom", y=1.02))
+        fig_s.update_layout(
+            height=500,
+            margin=dict(t=16, b=96),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.18,
+                yref="paper",
+                x=0.5,
+                xanchor="center",
+            ),
+        )
         st.plotly_chart(fig_s, use_container_width=True)
 
     with t_heat:
