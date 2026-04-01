@@ -1,6 +1,6 @@
 # Building a Windows `.exe` (folder) for distribution
 
-Streamlit is a **local web server** + browser UI. PyInstaller produces a **`dist/OptionPriceCalculator/` folder** containing `OptionPriceCalculator.exe` and an `_internal` directory. **Zip the entire folder** for customers — the `.exe` alone is not enough.
+Streamlit is a **local web server** + browser UI. PyInstaller produces a **`dist/OptionPriceCalculator/` folder** containing `OptionPriceCalculator.exe` and an `_internal` directory. Distribute the **whole folder** (or zip it) — the `.exe` alone is not enough.
 
 > **Build on a Windows PC.** PyInstaller does not reliably cross-compile Windows `.exe` from macOS/Linux.
 
@@ -30,25 +30,19 @@ Result:
 - `dist\OptionPriceCalculator\OptionPriceCalculator.exe` — launcher (opens browser to the app)  
 - `dist\OptionPriceCalculator\_internal\` — bundled Python, Streamlit, your scripts  
 
-## 4. What you ship
+First run may take **30–60+ seconds**. Windows **SmartScreen** may warn on unsigned builds; code signing reduces that.
 
-Zip **`OptionPriceCalculator`** (the whole directory). Tell buyers to extract and run **`OptionPriceCalculator.exe`**.
-
-- First run may take **30–60+ seconds** while files unpack.  
-- Windows **SmartScreen** often warns on unsigned apps. For paid software, consider an **EV code signing certificate** (costly) to reduce warnings.  
-- This is **not** investment advice; your README disclaimer still applies.
-
-## 5. Optional: hide console window
+## 4. Optional: hide console window
 
 In `optioncalc.spec`, change `console=True` to `console=False` under `EXE(...)`. Errors will be harder to debug; use only when stable.
 
-## 6. If the build fails
+## 5. If the build fails
 
 - Try upgrading: `pip install -U pyinstaller streamlit`  
 - Add missing packages to the `collect_all` loop in `optioncalc.spec` if PyInstaller omits a dependency  
 - Prefer **onedir** (this spec) over **onefile** for Streamlit — onefile is slower and more fragile  
 
-## 7. Run without building (dev)
+## 6. Run without building (dev)
 
 ```powershell
 python launcher.py
@@ -56,6 +50,6 @@ python launcher.py
 
 Same as `streamlit run Main.py`, but matches the frozen entry point.
 
-## 8. macOS
+## 7. macOS
 
 Windows `.exe` files do not run on Mac. For a native Mac bundle, build on macOS — see **[BUILD_MAC.md](BUILD_MAC.md)**.
