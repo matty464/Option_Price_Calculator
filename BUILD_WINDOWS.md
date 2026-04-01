@@ -55,3 +55,7 @@ python launcher.py
 ```
 
 Same as `streamlit run Main.py`, but matches the frozen entry point.
+
+## 8. macOS
+
+Windows `.exe` files do not run on Mac. For a native Mac bundle, build on macOS — see **[BUILD_MAC.md](BUILD_MAC.md)**.

@@ -1,7 +1,7 @@
 """
 Desktop entry point for Option Price Calculator.
 - Dev:  python launcher.py
-- Build: PyInstaller on Windows (see BUILD_WINDOWS.md)
+- Build: PyInstaller — Windows (BUILD_WINDOWS.md), macOS (BUILD_MAC.md)
 
 Uses Streamlit bootstrap directly (avoids click context required by streamlit.web.cli._main_run).
 """

@@ -1,2 +1,2 @@
-# Install on the machine that builds the Windows bundle (typically Windows).
+# Install on the machine that runs PyInstaller (Windows or macOS).
 pyinstaller>=6.0

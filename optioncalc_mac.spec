@@ -1,7 +1,10 @@
-# PyInstaller spec — onedir folder (Windows: .exe; macOS: Unix executable named OptionPriceCalculator).
-# Windows:  pyinstaller optioncalc.spec
-# macOS folder build:  pyinstaller optioncalc.spec  →  ./dist/OptionPriceCalculator/OptionPriceCalculator
-# macOS .app:  use optioncalc_mac.spec instead (see BUILD_MAC.md)
+# PyInstaller spec for Option Price Calculator — macOS (.app bundle).
+# Build on macOS:  pyinstaller optioncalc_mac.spec
+# Output: dist/OptionPriceCalculator.app  (zip or copy the .app for distribution)
+#
+# Folder-only build (Terminal): same Analysis as optioncalc.spec — use
+#   pyinstaller optioncalc.spec
+# then run:  ./dist/OptionPriceCalculator/OptionPriceCalculator
 
 from PyInstaller.utils.hooks import collect_all
 
@@ -80,4 +83,16 @@ coll = COLLECT(
     upx=True,
     upx_exclude=[],
     name="OptionPriceCalculator",
+)
+
+app = BUNDLE(
+    coll,
+    name="OptionPriceCalculator.app",
+    bundle_identifier="com.optionpricecalculator.app",
+    info_plist={
+        "CFBundleName": "Option Price Calculator",
+        "CFBundleDisplayName": "Option Price Calculator",
+        "CFBundleShortVersionString": "1.0.0",
+        "NSHighResolutionCapable": True,
+    },
 )

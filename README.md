@@ -39,9 +39,12 @@ If `streamlit` is not found, activate the virtual environment first, or run:
 python -m streamlit run Main.py
 ```
 
-### Windows desktop bundle (sell / offline install)
+### Desktop bundles (PyInstaller)
 
-To package a **Windows `.exe` + folder** with PyInstaller, build **on Windows** and zip the output folder. See **[BUILD_WINDOWS.md](BUILD_WINDOWS.md)** for steps. Entry script: `launcher.py` (same behavior as Streamlit, opens the browser automatically).
+- **macOS:** build on a Mac → **`OptionPriceCalculator.app`** or a folder with a Unix executable. See **[BUILD_MAC.md](BUILD_MAC.md)**.
+- **Windows:** build on Windows → **`OptionPriceCalculator.exe`** + `_internal` folder (zip the whole directory). See **[BUILD_WINDOWS.md](BUILD_WINDOWS.md)**.
+
+Entry script for both: **`launcher.py`** (same behavior as `streamlit run Main.py`, opens the browser automatically).
 
 ## Requirements
 
