@@ -16,7 +16,13 @@ import streamlit as st
 
 from black_scholes import bs_price, bs_price_greeks
 from iv_solve import implied_volatility
-from market_data import fetch_option_at_strike, get_us_10y_yield_percent, get_vix, list_option_expiries
+from market_data import (
+    fetch_option_at_strike,
+    get_spot,
+    get_us_10y_yield_percent,
+    get_vix,
+    list_option_expiries,
+)
 
 MULT = 100
 
@@ -95,6 +101,20 @@ def _cached_expiries(sym: str) -> tuple[str, ...]:
     return tuple(list_option_expiries(sym.strip().upper()))
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_spot(sym: str) -> float | None:
+    return get_spot(sym.strip().upper())
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_option_mid(sym: str, expiry: str, strike: float, side: str) -> float | None:
+    ot = "call" if side == "call" else "put"
+    sn = fetch_option_at_strike(sym.strip().upper(), expiry.strip(), float(strike), ot)
+    if sn is None:
+        return None
+    return float(sn.mid_price)
+
+
 @dataclass
 class LegInput:
     symbol: str
@@ -156,7 +176,7 @@ with st.sidebar:
 st.subheader("Positions")
 st.caption(
     "Pick **expiry** from the dropdown (loads for that symbol). "
-    "**Your trade** is cost basis for P/L (leave 0 to use quote mid)."
+    "**Your trade** defaults to the quoted mid; edit for your cost basis (set **0** to use live quote mid for P/L)."
 )
 
 leg_inputs: list[LegInput] = []
@@ -169,17 +189,52 @@ for i in range(n_legs):
         exp = c1.selectbox("Expiry", options=expiries, key=f"exp_{sym or 'x'}_{i}")
     else:
         exp = c1.text_input("Expiry (YYYY-MM-DD)", value="", key=f"exp_txt_{i}", placeholder="YYYY-MM-DD").strip()
-    strike = c2.number_input("Strike", min_value=0.01, value=500.0 if i == 0 else 100.0, step=0.5, key=f"k_{i}")
+    k_key = f"k_{i}"
+    _strike_anchor = f"_strike_anchor_sym_{i}"
+    _fallback_k = 500.0 if i == 0 else 100.0
+    if sym:
+        spot = _cached_spot(sym)
+        prev_sym = st.session_state.get(_strike_anchor)
+        if prev_sym != sym:
+            st.session_state[_strike_anchor] = sym
+            if spot is not None:
+                st.session_state[k_key] = float(max(0.01, round(spot / 0.5) * 0.5))
+            elif k_key not in st.session_state:
+                st.session_state[k_key] = _fallback_k
+    elif _strike_anchor in st.session_state:
+        del st.session_state[_strike_anchor]
+    strike = c2.number_input(
+        "Strike",
+        min_value=0.01,
+        value=_fallback_k,
+        step=0.5,
+        key=k_key,
+        help="Defaults to underlying spot (rounded to $0.50) when you set or change the symbol.",
+    )
     side = c3.selectbox("Type", ["call", "put"], key=f"side_{i}")
     qty = c4.number_input("Qty", min_value=1, value=1, step=1, key=f"q_{i}")
+    tp_key = f"tp_{i}"
+    _trade_anchor = f"_trade_anchor_{i}"
+    if sym and exp:
+        cur_trade = (sym, exp, round(float(strike), 4), side)
+        prev_trade = st.session_state.get(_trade_anchor)
+        if prev_trade != cur_trade:
+            st.session_state[_trade_anchor] = cur_trade
+            mid = _cached_option_mid(sym, exp, float(strike), side)
+            if mid is not None:
+                st.session_state[tp_key] = round(mid, 2)
+            else:
+                st.session_state[tp_key] = 0.0
+    elif _trade_anchor in st.session_state:
+        del st.session_state[_trade_anchor]
     trade_px = c5.number_input(
         "Your trade",
         min_value=0.0,
         value=0.0,
         step=0.01,
         format="%.2f",
-        key=f"tp_{i}",
-        help="$/share. 0 = use quote mid.",
+        key=tp_key,
+        help="$/share — defaults to quoted mid when symbol, expiry, strike, or type changes. **0** = use live quote mid for P/L.",
     )
     if sym and exp:
         leg_inputs.append(
