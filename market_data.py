@@ -50,6 +50,21 @@ def get_vix() -> float | None:
     return float(hist["Close"].iloc[-1])
 
 
+def get_us_10y_yield_percent() -> float | None:
+    """
+    Spot U.S. 10-year Treasury yield from Yahoo (^TNX), as an annual % (e.g. 4.25 = 4.25%).
+    Same convention as typical risk-free inputs in Black–Scholes (percent, not decimal).
+    """
+    t = yf.Ticker("^TNX")
+    fast = t.fast_info.get("last_price") or t.fast_info.get("regular_market_price")
+    if fast is not None:
+        return float(fast)
+    hist = t.history(period="5d", auto_adjust=True)
+    if hist.empty:
+        return None
+    return float(hist["Close"].iloc[-1])
+
+
 def get_spot(equity_ticker: str) -> float | None:
     sym = equity_ticker.strip().upper()
     if not sym:

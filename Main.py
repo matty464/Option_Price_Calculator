@@ -16,7 +16,7 @@ import streamlit as st
 
 from black_scholes import bs_price, bs_price_greeks
 from iv_solve import implied_volatility
-from market_data import fetch_option_at_strike, get_vix, list_option_expiries
+from market_data import fetch_option_at_strike, get_us_10y_yield_percent, get_vix, list_option_expiries
 
 MULT = 100
 
@@ -117,15 +117,41 @@ st.caption(
     "Scenario **VIX** optionally rescales chain IV."
 )
 
+if "quote_cache" not in st.session_state:
+    st.session_state.quote_cache = None
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_10y_yield_pct() -> float | None:
+    return get_us_10y_yield_percent()
+
+
+if "risk_free_rate_pct" not in st.session_state:
+    _y0 = _cached_10y_yield_pct()
+    st.session_state.risk_free_rate_pct = float(round(_y0, 3)) if _y0 is not None else 4.5
+
+# Apply 10Y sync before the risk-free widget is created (cannot set session_state after widget bind).
+if st.session_state.pop("_pending_sync_rfr", False):
+    _pv = st.session_state.pop("_pending_rfr_value", None)
+    if _pv is not None:
+        st.session_state.risk_free_rate_pct = float(_pv)
+
 with st.sidebar:
     st.markdown("### Book")
     n_legs = st.slider("Number of legs", min_value=1, max_value=12, value=1)
-    rate_pct = st.number_input("Risk-free rate (annual %)", min_value=0.0, value=4.5, step=0.05)
-    r = rate_pct / 100.0
+    _y_live = _cached_10y_yield_pct()
+    st.caption(
+        f"10Y Treasury (^TNX): **{_y_live:.3f}%**" if _y_live is not None else "10Y Treasury: — (using manual rate)"
+    )
+    rate_pct = st.number_input(
+        "Risk-free rate (annual %)",
+        min_value=0.0,
+        step=0.05,
+        key="risk_free_rate_pct",
+        help="Pulled from 10Y yield on first load and when you Refresh quotes. Edit anytime.",
+    )
+    r = float(rate_pct) / 100.0
     refresh = st.button("Refresh quotes", type="primary", use_container_width=True)
-
-if "quote_cache" not in st.session_state:
-    st.session_state.quote_cache = None
 
 st.subheader("Positions")
 st.caption(
@@ -175,18 +201,25 @@ if not leg_inputs:
 legs_key = _legs_cache_key(leg_inputs)
 
 if refresh or st.session_state.quote_cache is None or st.session_state.quote_cache.get("legs_key") != legs_key:
-    with st.spinner("Fetching VIX and option chains…"):
+    with st.spinner("Fetching VIX, 10Y yield, and option chains…"):
         vx = get_vix()
+        y10 = get_us_10y_yield_percent()
         snaps = []
         for lg in leg_inputs:
             snaps.append(fetch_option_at_strike(lg.symbol, lg.expiry, lg.strike, lg.side))
     st.session_state.quote_cache = {
         "vix": vx,
+        "yield_10y": y10,
         "snaps": snaps,
         "legs_key": legs_key,
     }
     vl = float(vx) if vx is not None else 20.0
     st.session_state.scenario_vix = float(np.clip(vl, 5.0, 90.0))
+    if y10 is not None:
+        st.session_state["_pending_rfr_value"] = float(round(y10, 3))
+        st.session_state["_pending_sync_rfr"] = True
+    _cached_10y_yield_pct.clear()
+    st.rerun()
 
 cache = st.session_state.quote_cache
 vix_live = cache["vix"]
@@ -695,3 +728,19 @@ with tab_pl:
         with u2:
             st.markdown("**By stock price**")
             st.dataframe(df_spot, use_container_width=True, hide_index=True, height=380)
+
+st.divider()
+st.markdown("**Disclaimer**")
+st.caption(
+    "This application is for **education and information only**. It is **not** financial, investment, tax, or legal "
+    "advice, and **not** a recommendation to buy, sell, or hold any security or derivative."
+)
+st.caption(
+    "Market data may be **delayed or wrong**. Model outputs (including Greeks, implied volatility, and P/L scenarios) "
+    "are **approximations** and may differ materially from your broker, exchanges, or actual results. Options involve "
+    "substantial risk."
+)
+st.caption(
+    "**You are solely responsible** for your trading decisions. The authors and contributors **disclaim liability** for "
+    "any loss or damage arising from use of this software."
+)

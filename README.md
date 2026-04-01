@@ -39,6 +39,10 @@ If `streamlit` is not found, activate the virtual environment first, or run:
 python -m streamlit run Main.py
 ```
 
+### Windows desktop bundle (sell / offline install)
+
+To package a **Windows `.exe` + folder** with PyInstaller, build **on Windows** and zip the output folder. See **[BUILD_WINDOWS.md](BUILD_WINDOWS.md)** for steps. Entry script: `launcher.py` (same behavior as Streamlit, opens the browser automatically).
+
 ## Requirements
 
 See `requirements.txt` (Streamlit, yfinance, numpy, pandas, plotly).

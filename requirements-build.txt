@@ -1,0 +1,2 @@
+# Install on the machine that builds the Windows bundle (typically Windows).
+pyinstaller>=6.0
