@@ -632,15 +632,27 @@ with tab_pl:
         st.markdown(f"**By date** — {sym_chart} @ **${S_time:,.2f}**")
         st.caption("Underlying held at this level through time (adjust in **Time-decay path** above). IV unchanged.")
         fig_t = make_subplots(specs=[[{"secondary_y": True}]])
+        # ISO strings as x break line drawing with dual y-axes (weird midnight ticks, empty lines).
+        x_dt = chart_dates
+        y_eq = [float(v) for v in df_time["Price ($/sh eq)"]]
+        y_pn = [float(v) for v in df_time["P/L ($)"]]
+        point_mode = "lines+markers" if len(x_dt) <= 7 else "lines"
+        marker_cfg = dict(size=8) if len(x_dt) <= 7 else None
+        if len(x_dt) == 1:
+            st.caption("Only one date is available on this path, so the chart shows points instead of a line.")
         fig_t.add_trace(
-            go.Scatter(x=df_time["Date"], y=df_time["Price ($/sh eq)"], name="Model price (equiv)", mode="lines"),
+            go.Scatter(x=x_dt, y=y_eq, name="Model price (equiv)", mode=point_mode, marker=marker_cfg),
+            row=1,
+            col=1,
             secondary_y=False,
         )
         fig_t.add_trace(
-            go.Scatter(x=df_time["Date"], y=df_time["P/L ($)"], name="P/L ($)", mode="lines"),
+            go.Scatter(x=x_dt, y=y_pn, name="P/L ($)", mode=point_mode, marker=marker_cfg),
+            row=1,
+            col=1,
             secondary_y=True,
         )
-        fig_t.update_xaxes(title_text="Date")
+        fig_t.update_xaxes(title_text="Date", type="date")
         fig_t.update_yaxes(title_text="Price ($/sh equivalent)", secondary_y=False)
         fig_t.update_yaxes(title_text="P/L ($)", secondary_y=True)
         fig_t.update_layout(
@@ -726,6 +738,16 @@ with tab_pl:
                 _, pnl_ij = portfolio_equiv_pnl_for_date(float(s_val), chart_xs, d_val)
                 z_heat[i, j] = pnl_ij
 
+        zmin_heat = float(np.nanmin(z_heat)) if z_heat.size else 0.0
+        zmax_heat = float(np.nanmax(z_heat)) if z_heat.size else 0.0
+        if not np.isfinite(zmin_heat):
+            zmin_heat = 0.0
+        if not np.isfinite(zmax_heat):
+            zmax_heat = 0.0
+        if zmin_heat == zmax_heat:
+            zmin_heat -= 1.0
+            zmax_heat += 1.0
+
         hm_hover = f"Date=%{{x}}<br>{sym_chart}=%{{y:.2f}}<br>P/L=$%{{z:,.0f}}<extra></extra>"
         fig_hm = go.Figure(
             data=go.Heatmap(
@@ -733,7 +755,8 @@ with tab_pl:
                 y=sub_spots,
                 z=z_heat,
                 colorscale="RdYlGn",
-                zmid=0.0,
+                zmin=zmin_heat,
+                zmax=zmax_heat,
                 colorbar=dict(title="P/L ($)"),
                 hovertemplate=hm_hover,
             )
@@ -750,17 +773,14 @@ with tab_pl:
 
         show_3d = st.checkbox("Also show 3D surface", value=False, key="hm_3d")
         if show_3d:
-            lim = float(np.nanmax(np.abs(z_heat))) if z_heat.size else 1.0
-            if lim <= 0 or np.isnan(lim):
-                lim = 1.0
             fig_3d = go.Figure(
                 data=go.Surface(
                     x=sub_date_labels,
                     y=sub_spots,
                     z=z_heat,
                     colorscale="RdYlGn",
-                    cmin=-lim,
-                    cmax=lim,
+                    cmin=zmin_heat,
+                    cmax=zmax_heat,
                     hovertemplate="Date=%{x}<br>Spot=%{y:.2f}<br>P/L=$%{z:,.0f}<extra></extra>",
                 )
             )
