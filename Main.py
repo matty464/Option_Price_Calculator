@@ -549,16 +549,19 @@ with tab_pl:
         ),
     )
 
-    def model_price_on_date(S_spot: float, snap, iv_eff: float, d: date) -> float:
+    def model_price_on_date(S_spot: float, snap, iv_eff: float, d: date | datetime) -> float:
         exp_d = datetime.strptime(snap.expiry, "%Y-%m-%d").date()
-        if d > exp_d:
+        point_dt = d if isinstance(d, datetime) else datetime.combine(d, datetime.min.time())
+        point_d = point_dt.date()
+        if point_d > exp_d:
             return 0.0
-        rem_days = (exp_d - d).days
-        if rem_days <= 0:
+        expiry_dt = datetime.combine(exp_d + timedelta(days=1), datetime.min.time())
+        rem_seconds = max((expiry_dt - point_dt).total_seconds(), 0.0)
+        if rem_seconds <= 0:
             return intrinsic_value(S_spot, snap.strike, snap.option_type)
-        return bs_price(S_spot, snap.strike, max(rem_days / 365.0, 1e-8), r, iv_eff, snap.option_type)
+        return bs_price(S_spot, snap.strike, max(rem_seconds / (365.0 * 24.0 * 3600.0), 1e-8), r, iv_eff, snap.option_type)
 
-    def portfolio_equiv_pnl_for_date(S_spot: float, xs: list, d: date) -> tuple[float, float]:
+    def portfolio_equiv_pnl_for_date(S_spot: float, xs: list, d: date | datetime) -> tuple[float, float]:
         tv = 0.0
         ent = 0.0
         wq = 0
@@ -591,19 +594,35 @@ with tab_pl:
     max_exp = max(datetime.strptime(x["snap"].expiry, "%Y-%m-%d").date() for x in chart_xs)
     today_d = date.today()
     time_rows = []
-    chart_dates: list[date] = []
-    day_i = 0
-    while True:
-        d = today_d + timedelta(days=day_i)
-        if d > max_exp:
-            break
-        chart_dates.append(d)
-        eq, pnl = portfolio_equiv_pnl_for_date(float(S_time), chart_xs, d)
-        min_dte = min(max((datetime.strptime(x["snap"].expiry, "%Y-%m-%d").date() - d).days, 0) for x in chart_xs)
-        time_rows.append({"Date": d.isoformat(), "Min DTE": min_dte, "Price ($/sh eq)": eq, "P/L ($)": pnl})
-        day_i += 1
-        if day_i > 4000:
-            break
+    chart_dates: list[date | datetime] = []
+    if max_exp == today_d:
+        now_dt = datetime.now().replace(minute=0, second=0, microsecond=0)
+        end_dt = datetime.combine(today_d, datetime.min.time()) + timedelta(hours=23)
+        hour_i = 0
+        while True:
+            d = now_dt + timedelta(hours=hour_i)
+            if d > end_dt:
+                break
+            chart_dates.append(d)
+            eq, pnl = portfolio_equiv_pnl_for_date(float(S_time), chart_xs, d)
+            min_dte = min(max((datetime.strptime(x["snap"].expiry, "%Y-%m-%d").date() - d.date()).days, 0) for x in chart_xs)
+            time_rows.append({"Date": d.strftime("%Y-%m-%d %H:%M"), "Min DTE": min_dte, "Price ($/sh eq)": eq, "P/L ($)": pnl})
+            hour_i += 1
+            if hour_i > 48:
+                break
+    else:
+        day_i = 0
+        while True:
+            d = today_d + timedelta(days=day_i)
+            if d > max_exp:
+                break
+            chart_dates.append(d)
+            eq, pnl = portfolio_equiv_pnl_for_date(float(S_time), chart_xs, d)
+            min_dte = min(max((datetime.strptime(x["snap"].expiry, "%Y-%m-%d").date() - d).days, 0) for x in chart_xs)
+            time_rows.append({"Date": d.isoformat(), "Min DTE": min_dte, "Price ($/sh eq)": eq, "P/L ($)": pnl})
+            day_i += 1
+            if day_i > 4000:
+                break
 
     df_time = pd.DataFrame(time_rows)
 
@@ -631,6 +650,8 @@ with tab_pl:
     with t_time:
         st.markdown(f"**By date** — {sym_chart} @ **${S_time:,.2f}**")
         st.caption("Underlying held at this level through time (adjust in **Time-decay path** above). IV unchanged.")
+        if max_exp == today_d:
+            st.caption("0DTE path uses hourly time steps through the rest of today.")
         fig_t = make_subplots(specs=[[{"secondary_y": True}]])
         # ISO strings as x break line drawing with dual y-axes (weird midnight ticks, empty lines).
         x_dt = chart_dates
