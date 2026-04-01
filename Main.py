@@ -551,15 +551,25 @@ with tab_pl:
 
     def model_price_on_date(S_spot: float, snap, iv_eff: float, d: date | datetime) -> float:
         exp_d = datetime.strptime(snap.expiry, "%Y-%m-%d").date()
-        point_dt = d if isinstance(d, datetime) else datetime.combine(d, datetime.min.time())
-        point_d = point_dt.date()
-        if point_d > exp_d:
+        if isinstance(d, datetime):
+            point_dt = d
+            point_d = point_dt.date()
+            if point_d > exp_d:
+                return 0.0
+            # Intraday path for 0DTE: use fractional time through the expiry day.
+            expiry_dt = datetime.combine(exp_d + timedelta(days=1), datetime.min.time())
+            rem_seconds = max((expiry_dt - point_dt).total_seconds(), 0.0)
+            if rem_seconds <= 0:
+                return intrinsic_value(S_spot, snap.strike, snap.option_type)
+            T = max(rem_seconds / (365.0 * 24.0 * 3600.0), 1e-8)
+            return bs_price(S_spot, snap.strike, T, r, iv_eff, snap.option_type)
+
+        if d > exp_d:
             return 0.0
-        expiry_dt = datetime.combine(exp_d + timedelta(days=1), datetime.min.time())
-        rem_seconds = max((expiry_dt - point_dt).total_seconds(), 0.0)
-        if rem_seconds <= 0:
+        rem_days = (exp_d - d).days
+        if rem_days <= 0:
             return intrinsic_value(S_spot, snap.strike, snap.option_type)
-        return bs_price(S_spot, snap.strike, max(rem_seconds / (365.0 * 24.0 * 3600.0), 1e-8), r, iv_eff, snap.option_type)
+        return bs_price(S_spot, snap.strike, max(rem_days / 365.0, 1e-8), r, iv_eff, snap.option_type)
 
     def portfolio_equiv_pnl_for_date(S_spot: float, xs: list, d: date | datetime) -> tuple[float, float]:
         tv = 0.0
