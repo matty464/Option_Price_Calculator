@@ -137,6 +137,25 @@ st.caption(
     "Scenario **VIX** optionally rescales chain IV."
 )
 
+with st.expander("Support / Donations", expanded=False):
+    st.caption("If you find this tool useful, tips are appreciated — no obligation whatsoever!")
+    _d1, _d2, _d3 = st.columns(3)
+    with _d1:
+        st.markdown(
+            "**Bitcoin (BTC)**  \n`bc1qemvr8eq33z3sgvrdfmls339grdq3snea9cre04`\n\n"
+            "**Ethereum (ETH)**  \n`0x7262a0d14a092605B8592ca74219930cBeF09C8A`"
+        )
+    with _d2:
+        st.markdown(
+            "**Solana (SOL)**  \n`5QS5LHaeF8kC72Ua9HuRszh4nr2uyNMsHVksaZhaGgd1`\n\n"
+            "**Dogecoin (DOGE)**  \n`D7FYhFWqUzL4xunf84K8obyVaAcn9ByVxs`"
+        )
+    with _d3:
+        st.markdown(
+            "**Bitcoin Cash (BCH)**  \n`bitcoincash:qrppntvg7j39jdutca4sgndk3phflhcvz5yf9gjxts`\n\n"
+            "**Litecoin (LTC)**  \n`ltc1qte5jwedkcqm95y8g76m3ltrlghrj5e2qd5gw4z`"
+        )
+
 if "quote_cache" not in st.session_state:
     st.session_state.quote_cache = None
 
@@ -158,7 +177,17 @@ if st.session_state.pop("_pending_sync_rfr", False):
 
 with st.sidebar:
     st.markdown("### Book")
-    n_legs = st.slider("Number of legs", min_value=1, max_value=12, value=1)
+    if "n_legs" not in st.session_state:
+        st.session_state.n_legs = 1
+    st.markdown(f"**Legs: {st.session_state.n_legs}**")
+    _ac, _rc = st.columns(2)
+    if _ac.button("＋ Add Leg", use_container_width=True) and st.session_state.n_legs < 12:
+        st.session_state.n_legs += 1
+        st.rerun()
+    if _rc.button("－ Remove Leg", use_container_width=True) and st.session_state.n_legs > 1:
+        st.session_state.n_legs -= 1
+        st.rerun()
+    n_legs = st.session_state.n_legs
     _y_live = _cached_10y_yield_pct()
     st.caption(
         f"10Y Treasury (^TNX): **{_y_live:.3f}%**" if _y_live is not None else "10Y Treasury: — (using manual rate)"
@@ -450,7 +479,7 @@ tot = {
 }
 sum_out = pd.concat([sum_df, pd.DataFrame([tot])], ignore_index=True)
 
-tab_summary, tab_spot, tab_pl = st.tabs(["Summary", "Stock what-if", "P/L & charts"])
+tab_pl, tab_summary, tab_spot = st.tabs(["P/L & charts", "Summary", "Stock what-if"])
 
 with tab_summary:
     st.subheader("Book & Greeks")
@@ -655,7 +684,7 @@ with tab_pl:
 
     df_spot = pd.DataFrame({f"{sym_chart} price": spots, "Price ($/sh eq)": prices_spot, "P/L ($)": pnl_spot})
 
-    t_time, t_spot, t_heat, t_tbl = st.tabs(["By date", "By stock price", "P/L: date & price", "Tables"])
+    t_tbl, t_time, t_spot, t_heat = st.tabs(["Tables", "By date", "By stock price", "P/L: date & price"])
 
     with t_time:
         st.markdown(f"**By date** — {sym_chart} @ **${S_time:,.2f}**")
@@ -827,13 +856,40 @@ with tab_pl:
             st.plotly_chart(fig_3d, use_container_width=True)
 
     with t_tbl:
-        u1, u2 = st.columns(2)
-        with u1:
-            st.markdown("**By date**")
-            st.dataframe(df_time, use_container_width=True, hide_index=True, height=380)
-        with u2:
-            st.markdown("**By stock price**")
-            st.dataframe(df_spot, use_container_width=True, hide_index=True, height=380)
+        st.markdown("**By date — P/L ($) at $1 stock price increments**")
+        st.caption("Rows = dates through expiry. Columns = stock price in $1 steps. Current spot column highlighted.")
+        _tbl_center = int(round(S_chart))
+        _tbl_lo_c, _tbl_hi_c, _ = st.columns([1, 1, 2])
+        _tbl_dn = _tbl_lo_c.number_input("Range below ($)", min_value=1, max_value=100, value=10, step=1, key="tbl_dn")
+        _tbl_up = _tbl_hi_c.number_input("Range above ($)", min_value=1, max_value=100, value=10, step=1, key="tbl_up")
+        _tbl_prices = list(range(_tbl_center - int(_tbl_dn), _tbl_center + int(_tbl_up) + 1))
+
+        _date_pnl_rows = []
+        for _cd, _tr in zip(chart_dates, time_rows):
+            _row: dict = {"Date": _tr["Date"], "DTE": _tr["Min DTE"]}
+            for _p in _tbl_prices:
+                _, _pnl_p = portfolio_equiv_pnl_for_date(float(_p), chart_xs, _cd)
+                _row[f"${_p}"] = int(round(_pnl_p))
+            _date_pnl_rows.append(_row)
+
+        _df_date_grid = pd.DataFrame(_date_pnl_rows)
+
+        def _hl_spot_col(df: pd.DataFrame) -> pd.DataFrame:
+            styles = pd.DataFrame("", index=df.index, columns=df.columns)
+            _col = f"${_tbl_center}"
+            if _col in styles.columns:
+                styles[_col] = "background-color: #1f4e79; color: #ffffff; font-weight: bold"
+            return styles
+
+        st.dataframe(
+            _df_date_grid.style.apply(_hl_spot_col, axis=None),
+            use_container_width=True,
+            hide_index=True,
+            height=420,
+        )
+
+        st.markdown("**By stock price**")
+        st.dataframe(df_spot, use_container_width=True, hide_index=True, height=340)
 
 st.divider()
 st.markdown("**Disclaimer**")

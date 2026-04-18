@@ -49,3 +49,16 @@ Entry script for both: **`launcher.py`** (same behavior as `streamlit run Main.p
 ## Requirements
 
 See `requirements.txt` (Streamlit, yfinance, numpy, pandas, plotly).
+
+## Support / Donations
+
+If you find this tool useful, tips are appreciated — no obligation whatsoever!
+
+| Chain | Address |
+|---|---|
+| **Bitcoin (BTC)** | `bc1qemvr8eq33z3sgvrdfmls339grdq3snea9cre04` |
+| **Ethereum (ETH)** | `0x7262a0d14a092605B8592ca74219930cBeF09C8A` |
+| **Solana (SOL)** | `5QS5LHaeF8kC72Ua9HuRszh4nr2uyNMsHVksaZhaGgd1` |
+| **Dogecoin (DOGE)** | `D7FYhFWqUzL4xunf84K8obyVaAcn9ByVxs` |
+| **Bitcoin Cash (BCH)** | `bitcoincash:qrppntvg7j39jdutca4sgndk3phflhcvz5yf9gjxts` |
+| **Litecoin (LTC)** | `ltc1qte5jwedkcqm95y8g76m3ltrlghrj5e2qd5gw4z` |
